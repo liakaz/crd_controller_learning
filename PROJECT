@@ -13,4 +13,8 @@ resources:
   kind: SillyWebapp
   path: liasawesomeapp.kubebuilder.io/project/api/v1
   version: v1
+- domain: liasawesomeapp.kubebuilder.io
+  group: webapp
+  kind: Frontend
+  version: v1
 version: "3"
