@@ -17,4 +17,13 @@ resources:
   group: webapp
   kind: Frontend
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: liasawesomeapp.kubebuilder.io
+  group: webapp
+  kind: Redis
+  path: liasawesomeapp.kubebuilder.io/project/api/v1
+  version: v1
 version: "3"
