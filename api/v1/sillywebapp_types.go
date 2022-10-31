@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,17 +26,29 @@ import (
 
 // SillyWebappSpec defines the desired state of SillyWebapp
 type SillyWebappSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Frontend  FrontendSpec `json:"frontend"`
+	RedisName string       `json:"redisName,omitempty"`
+}
 
-	// Foo is an example field of SillyWebapp. Edit sillywebapp_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+// FrontendSpec speficies the frontend container spec
+type FrontendSpec struct {
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources"`
+
+	// +optional
+	// +kubebuilder:default=8080
+	// +kubebuilder:validation:Minimum=0
+	ServingPort int32 `json:"servingPort"`
+
+	// +optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=0
+	Replicas *int32 `json:"replicas,omitempty"`
 }
 
 // SillyWebappStatus defines the observed state of SillyWebapp
 type SillyWebappStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	URL string `json:"url"`
 }
 
 //+kubebuilder:object:root=true
