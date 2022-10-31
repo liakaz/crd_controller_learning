@@ -53,6 +53,8 @@ type SillyWebappStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:JSONPath=".status.url",name="URL",type="string"
+//+kubebuilder:printcolumn:JSONPath=".spec.frontend.replicas",name="Replicas",type="integer"
 
 // SillyWebapp is the Schema for the sillywebapps API
 type SillyWebapp struct {

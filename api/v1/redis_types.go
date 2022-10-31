@@ -25,21 +25,22 @@ import (
 
 // RedisSpec defines the desired state of Redis
 type RedisSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +optional
+	// +kubebuilder:default="k8s.gcr.io/redis:e2e"
 
-	// Foo is an example field of Redis. Edit redis_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// The container image.
+	ContainerImage string `json:"containerImage,omitempty"`
 }
 
 // RedisStatus defines the observed state of Redis
 type RedisStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// The name of the service created for the Redis .
+	RedisServiceName string `json:"redisServiceName"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:JSONPath=".status.redisServiceName",name="RedisService",type="string"
 
 // Redis is the Schema for the redis API
 type Redis struct {
