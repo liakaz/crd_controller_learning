@@ -1,0 +1,16 @@
+domain: liasawesomeapp.kubebuilder.io
+layout:
+- go.kubebuilder.io/v3
+projectName: lias-awesome-app
+repo: liasawesomeapp.kubebuilder.io/project
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: liasawesomeapp.kubebuilder.io
+  group: webapp
+  kind: SillyWebapp
+  path: liasawesomeapp.kubebuilder.io/project/api/v1
+  version: v1
+version: "3"

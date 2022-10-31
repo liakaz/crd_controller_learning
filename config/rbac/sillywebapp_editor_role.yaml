@@ -1,0 +1,31 @@
+# permissions for end users to edit sillywebapps.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: sillywebapp-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: lias-awesome-app
+    app.kubernetes.io/part-of: lias-awesome-app
+    app.kubernetes.io/managed-by: kustomize
+  name: sillywebapp-editor-role
+rules:
+- apiGroups:
+  - webapp.liasawesomeapp.kubebuilder.io
+  resources:
+  - sillywebapps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - webapp.liasawesomeapp.kubebuilder.io
+  resources:
+  - sillywebapps/status
+  verbs:
+  - get
