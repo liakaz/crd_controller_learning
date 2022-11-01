@@ -18,8 +18,14 @@ package controllers
 
 import (
 	"context"
+	"strconv"
 
+	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,6 +36,7 @@ import (
 // SillyWebappReconciler reconciles a SillyWebapp object
 type SillyWebappReconciler struct {
 	client.Client
+	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
 
@@ -47,11 +54,130 @@ type SillyWebappReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *SillyWebappReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := r.Log.WithValues("sillywebapp", req.NamespacedName)
 
-	// TODO(user): your logic here
+	log.Info("reconciling sillywebapp")
+
+	var sillywebapp webappv1.SillyWebapp
+	if err := r.Get(ctx, req.NamespacedName, &sillywebapp); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	var redis webappv1.Redis
+	redisName := client.ObjectKey{Name: sillywebapp.Spec.RedisName, Namespace: req.Namespace}
+	if err := r.Get(ctx, redisName, &redis); err != nil {
+		log.Error(err, "didn't get redis")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	deployment, err := r.createDeployment(sillywebapp, redis)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	svc, err := r.createService(sillywebapp)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner("sillywebapp-controller")}
+
+	err = r.Patch(ctx, &deployment, client.Apply, applyOpts...)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = r.Patch(ctx, &svc, client.Apply, applyOpts...)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	sillywebapp.Status.URL = getServiceURL(svc, sillywebapp.Spec.Frontend.ServingPort)
+
+	err = r.Status().Update(ctx, &sillywebapp)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	log.Info("reconciled sillywebapp")
 
 	return ctrl.Result{}, nil
+}
+
+func getServiceURL(svc corev1.Service, port int32) string {
+	if svc.Spec.ClusterIP == "" {
+		log.Log.V(0).Info("service cluster IP is empty")
+		return ""
+	}
+	return "http://" + svc.Spec.ClusterIP + ":" + strconv.Itoa(int(port))
+}
+
+func (r *SillyWebappReconciler) createService(sillywebapp webappv1.SillyWebapp) (corev1.Service, error) {
+	svc := corev1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: corev1.SchemeGroupVersion.String(), Kind: "Service"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sillywebapp.Name,
+			Namespace: sillywebapp.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{Name: "http", Port: 8080, Protocol: "TCP", TargetPort: intstr.FromString("http")},
+			},
+			Selector: map[string]string{"sillywebapp": sillywebapp.Name},
+			Type:     corev1.ServiceTypeClusterIP,
+		},
+	}
+
+	// set the controller reference to be able to cleanup during delete/gc
+	if err := ctrl.SetControllerReference(&sillywebapp, &svc, r.Scheme); err != nil {
+		return svc, err
+	}
+
+	return svc, nil
+}
+
+func (r *SillyWebappReconciler) createDeployment(sillywebapp webappv1.SillyWebapp, redis webappv1.Redis) (appsv1.Deployment, error) {
+
+	log.Log.V(0).Info("HK - WR-createDeployment :###: RedisServiceName=" + redis.Status.RedisServiceName + "\n")
+
+	depl := appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sillywebapp.Name,
+			Namespace: sillywebapp.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: sillywebapp.Spec.Frontend.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"sillywebapp": sillywebapp.Name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"sillywebapp": sillywebapp.Name},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "frontend",
+							Image: "hmanikkothu/watchlist:v1",
+							Env: []corev1.EnvVar{
+								{Name: "REDIS_HOST", Value: redis.Status.RedisServiceName},
+							},
+							Ports: []corev1.ContainerPort{
+								{ContainerPort: 8080, Name: "http", Protocol: "TCP"},
+							},
+							Resources: *sillywebapp.Spec.Frontend.Resources.DeepCopy(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := ctrl.SetControllerReference(&sillywebapp, &depl, r.Scheme); err != nil {
+		return depl, err
+	}
+
+	return depl, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
