@@ -28,7 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	webappv1 "liasawesomeapp.kubebuilder.io/project/api/v1"
 )
@@ -180,9 +183,45 @@ func (r *SillyWebappReconciler) createDeployment(sillywebapp webappv1.SillyWebap
 	return depl, nil
 }
 
+func (r *SillyWebappReconciler) sillyAppsUsingRedis(obj client.Object) []reconcile.Request {
+	listOptions := []client.ListOption{
+		client.InNamespace(obj.GetNamespace()),
+		client.MatchingFields{".spec.redisName": obj.GetName()},
+	}
+	var list webappv1.SillyWebappList
+	if err := r.List(context.Background(), &list, listOptions...); err != nil {
+		log.Log.Error(err, "unable to list SillyWebapp")
+		return nil
+	}
+	res := make([]reconcile.Request, len(list.Items))
+	for i, sillywebapplist := range list.Items {
+		res[i].Name = sillywebapplist.Name
+		res[i].Namespace = sillywebapplist.Namespace
+	}
+	return res
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *SillyWebappReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&webappv1.SillyWebapp{},
+		".spec.redisName",
+		func(rawObj client.Object) []string {
+			redisName := rawObj.(*webappv1.SillyWebapp).Spec.RedisName
+			if redisName == "" {
+				return nil
+			}
+			return []string{redisName}
+		})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&webappv1.SillyWebapp{}).
+		Owns(&corev1.Service{}).
+		Owns(&appsv1.Deployment{}).
+		Watches(
+			&source.Kind{Type: &webappv1.Redis{}},
+			handler.EnqueueRequestsFromMapFunc(r.sillyAppsUsingRedis),
+		).
 		Complete(r)
 }
