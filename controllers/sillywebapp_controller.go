@@ -20,7 +20,6 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,13 +38,13 @@ import (
 // SillyWebappReconciler reconciles a SillyWebapp object
 type SillyWebappReconciler struct {
 	client.Client
-	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=webapp.liasawesomeapp.kubebuilder.io,resources=sillywebapps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=webapp.liasawesomeapp.kubebuilder.io,resources=sillywebapps/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=webapp.liasawesomeapp.kubebuilder.io,resources=sillywebapps/finalizers,verbs=update
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=list;watch;get;patch;create;update
+//+kubebuilder:rbac:groups=core,resources=services,verbs=list;watch;get;patch;create;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -57,9 +56,7 @@ type SillyWebappReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *SillyWebappReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("sillywebapp", req.NamespacedName)
-
-	log.Info("reconciling sillywebapp")
+	log.Log.V(0).Info("reconciling sillywebapp")
 
 	var sillywebapp webappv1.SillyWebapp
 	if err := r.Get(ctx, req.NamespacedName, &sillywebapp); err != nil {
@@ -69,7 +66,7 @@ func (r *SillyWebappReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var redis webappv1.Redis
 	redisName := client.ObjectKey{Name: sillywebapp.Spec.RedisName, Namespace: req.Namespace}
 	if err := r.Get(ctx, redisName, &redis); err != nil {
-		log.Error(err, "didn't get redis")
+		log.Log.Error(err, "didn't get redis")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -101,7 +98,7 @@ func (r *SillyWebappReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	log.Info("reconciled sillywebapp")
+	log.Log.V(0).Info("reconciled sillywebapp")
 
 	return ctrl.Result{}, nil
 }

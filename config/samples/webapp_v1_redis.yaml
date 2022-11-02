@@ -9,4 +9,4 @@ metadata:
     app.kubernetes.io/created-by: lias-awesome-app
   name: redis-sample
 spec:
-  # TODO(user): Add fields here
+  containerImage: k8s.gcr.io/redis:e2e
